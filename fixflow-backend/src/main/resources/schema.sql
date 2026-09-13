@@ -1,0 +1,35 @@
+CREATE TABLE IF NOT EXISTS incidents (
+    id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    description VARCHAR(2000) NOT NULL CHECK (length(trim(description)) > 0),
+    location VARCHAR(120) NOT NULL CHECK (length(trim(location)) > 0),
+    status VARCHAR(20) NOT NULL DEFAULT 'OPEN'
+        CHECK (status IN ('OPEN', 'IN_PROGRESS', 'RESOLVED')),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS app_users (
+    email VARCHAR(254) PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    password_hash VARCHAR(255) NOT NULL
+);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS owner_email VARCHAR(254) REFERENCES app_users(email);
+CREATE INDEX IF NOT EXISTS incidents_owner_id_idx ON incidents(owner_email, id DESC);
+
+ALTER TABLE app_users ADD COLUMN IF NOT EXISTS role VARCHAR(20) NOT NULL DEFAULT 'USER'
+    CHECK (role IN ('USER', 'TECHNICIAN', 'ADMIN'));
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS assigned_technician VARCHAR(254) REFERENCES app_users(email);
+CREATE INDEX IF NOT EXISTS incidents_assignee_id_idx ON incidents(assigned_technician, id DESC);
+
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS ai_mode VARCHAR(20);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS ai_category VARCHAR(30);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS ai_priority VARCHAR(20);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS ai_summary VARCHAR(1000);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS reviewed_category VARCHAR(30);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS reviewed_priority VARCHAR(20);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS reviewed_summary VARCHAR(1000);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS reviewed_by VARCHAR(254) REFERENCES app_users(email);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP WITH TIME ZONE;
+
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS cause VARCHAR(1000);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS resolution VARCHAR(2000);
+ALTER TABLE incidents ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP WITH TIME ZONE;

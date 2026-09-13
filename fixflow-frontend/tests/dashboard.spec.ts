@@ -1,0 +1,31 @@
+import { test, expect } from '@playwright/test'
+test('user report, search, filters, read-only status, and backend failure', async ({ page }) => {
+  await page.route('**/api/auth/me', route => route.fulfill({json:{email:'test@example.test',name:'Test User',role:'USER'}}))
+  await page.route('**/api/auth/csrf', route => route.fulfill({json:{headerName:'X-CSRF-TOKEN',token:'test-token'}}))
+  let tickets = [{ id: 1, description: 'Projector broken', location: 'Lab 2', status: 'OPEN', createdAt: '2026-09-12T05:00:00Z' }]
+  await page.route('**/api/incidents**', async route => {
+    const request = route.request()
+    if (request.method() === 'POST') tickets = [{...request.postDataJSON(), id: 2, status: 'OPEN', createdAt: '2026-09-12T06:00:00Z'}, ...tickets]
+    if (request.method() === 'PATCH') tickets = tickets.map(t => t.id === 2 ? {...t, status: request.postDataJSON().status} : t)
+    await route.fulfill({json: request.method() === 'GET' ? tickets : tickets[0]})
+  })
+  await page.goto('/')
+  await expect(page.getByRole('heading', {name:'Projector broken'})).toBeVisible()
+  await page.getByLabel('What’s the problem?').fill('Wi-Fi disconnected')
+  await page.getByLabel('Where is it?').fill('Lab 4')
+  await page.getByRole('button', {name:'Submit issue'}).click()
+  const card = page.getByRole('article').filter({hasText:'Wi-Fi disconnected'})
+  await expect(card).toBeVisible()
+  await expect(card.getByRole('combobox')).toHaveCount(0)
+  await page.getByLabel('Search issues').fill('Lab 4')
+  await expect(page.getByRole('article')).toHaveCount(1)
+  await page.getByLabel('Filter by status').getByRole('button', {name:'Resolved', exact:true}).click()
+  await expect(page.getByText('No matching issues')).toBeVisible()
+  await page.setViewportSize({width:390,height:844})
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({path:'test-results/mobile.png',fullPage:true})
+  await page.unroute('**/api/incidents**')
+  await page.route('**/api/incidents**', route => route.fulfill({status:503,body:'Unavailable'}))
+  await page.getByRole('button', {name:'Refresh'}).click()
+  await expect(page.getByRole('alert')).toContainText('Tickets are unavailable')
+})
