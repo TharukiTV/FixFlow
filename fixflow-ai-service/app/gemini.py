@@ -71,7 +71,7 @@ async def request_with_retries(client: httpx.AsyncClient, url: str, key: str, pa
     raise RuntimeError("Unreachable retry state")
 
 
-async def analyze_with_gemini(report: dict) -> Suggestion:
+async def analyze_with_gemini(report: dict, schema=Suggestion, instructions=INSTRUCTIONS):
     key = os.getenv("GEMINI_API_KEY", "").strip()
     if not key:
         raise HTTPException(503, "Gemini key is not configured. Restart Python using start.ps1.")
@@ -79,10 +79,10 @@ async def analyze_with_gemini(report: dict) -> Suggestion:
     if not re.fullmatch(r"[a-zA-Z0-9.-]+", model):
         raise HTTPException(503, "Invalid Gemini model configuration.")
     payload = {
-        "systemInstruction": {"parts": [{"text": INSTRUCTIONS}]},
+        "systemInstruction": {"parts": [{"text": instructions}]},
         "contents": [{"role": "user", "parts": [{"text": json.dumps(report)}]}],
         "generationConfig": {"responseMimeType": "application/json",
-                             "responseJsonSchema": Suggestion.model_json_schema(),
+                             "responseJsonSchema": schema.model_json_schema(),
                              "maxOutputTokens": 2048},
     }
     try:
@@ -119,7 +119,7 @@ async def analyze_with_gemini(report: dict) -> Suggestion:
         if candidate.get("finishReason") != "STOP":
             raise ValueError("Incomplete or blocked response")
         text = "".join(part.get("text", "") for part in candidate["content"]["parts"] if not part.get("thought"))
-        return Suggestion.model_validate_json(text)
+        return schema.model_validate_json(text)
     except httpx.HTTPStatusError as error:
         logging.getLogger("uvicorn.error").warning("Gemini failure: PROVIDER_ERROR (HTTP %s)", error.response.status_code)
         raise HTTPException(503, "Google Gemini returned a server error. Try again later; ticket submission still works.", headers={"X-Analysis-Error": "PROVIDER_ERROR"}) from None

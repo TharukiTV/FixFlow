@@ -30,6 +30,14 @@ public class AnalysisController {
         client = RestClient.builder().baseUrl(url).requestFactory(factory).build();
     }
 
+    public record FixMatch(long id, String explanation) {}
+    public record FixRanking(java.util.List<FixMatch> matches) {}
+    public FixRanking rankFixes(String description, java.util.List<com.fixflow.incident.IncidentRepository.PastFix> candidates) {
+        return client.post().uri("/ai/similar-fixes")
+            .body(Map.of("description", description, "candidates", candidates))
+            .retrieve().body(FixRanking.class);
+    }
+
     private static final String CACHE_KEY = AnalysisController.class.getName() + ".previews";
     private record Input(String description, String location) {
         static Input from(CreateIncidentRequest request) {

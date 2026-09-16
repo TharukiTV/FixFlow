@@ -45,6 +45,18 @@ public class IncidentRepository {
                 .query(MAPPER).single();
     }
 
+    public List<PastFix> recentFixes(long id, String technician) {
+        return jdbc.sql("""
+            SELECT id, description, cause, resolution FROM incidents
+            WHERE id <> :id AND assigned_technician = :technician AND status = 'RESOLVED'
+              AND length(trim(coalesce(cause, ''))) > 0
+              AND length(trim(coalesce(resolution, ''))) > 0
+            ORDER BY resolved_at DESC NULLS LAST, id DESC LIMIT 20
+            """).param("id", id).param("technician", technician)
+            .query((row, number) -> new PastFix(row.getLong("id"), row.getString("description"),
+                row.getString("cause"), row.getString("resolution"))).list();
+    }
+
     public record PastFix(long id, String description, String cause, String resolution) {}
 
     public List<PastFix> similarFixes(long id, String technician) {
