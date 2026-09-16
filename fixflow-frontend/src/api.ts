@@ -12,7 +12,7 @@ export async function csrfHeaders(): Promise<Record<string, string>> {
 }
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   let response: Response
-  try { response = await fetch(`/api/incidents${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(options?.method ? await csrfHeaders() : {}) }, signal: AbortSignal.timeout(options?.method === 'POST' && path === '' ? 40000 : 15000) }) }
+  try { response = await fetch(`/api/incidents${path}`, { ...options, headers: { 'Content-Type': 'application/json', ...(options?.method ? await csrfHeaders() : {}) }, signal: AbortSignal.timeout(options?.method === 'POST' ? 40000 : 15000) }) }
   catch { throw new Error('Cannot reach the server. Check your connection and try again.') }
   if (response.status === 401) { window.dispatchEvent(new Event('session-expired')); throw new Error('Your session expired. Please sign in again.') }
   if (!response.ok) throw new Error(response.status === 403 ? 'Your role does not allow this action, or your session changed. Refresh and try again.' : response.status === 404 ? 'This ticket no longer exists. Refresh the list.' : response.status === 400 ? 'Please check the description, location, and status.' : 'Tickets are unavailable. Make sure the backend is running, then retry.')
@@ -42,3 +42,6 @@ export const reviewIncident = (id:number, review:Review) => request<Incident>(`/
 
 export interface PastFix { id: number; description: string; cause: string; resolution: string }
 export const findSimilarFixes = (id: number) => request<PastFix[]>(`/${id}/similar-fixes`)
+
+export interface RankedFixResult { mode: 'TEXT' | 'GEMINI'; notice: string; matches: { fix: PastFix; explanation: string | null }[] }
+export const rankSimilarFixes = (id: number) => request<RankedFixResult>(`/${id}/similar-fixes`, { method: 'POST' })
